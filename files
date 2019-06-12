@@ -1,0 +1,139 @@
+Mysql数据库开发规范
+一、	必须：
+建库建表时：
+1、使用INNODB引擎；
+2、字符集使用utf8mb4;
+3、默认字符排序规则使用tf8mb4_gueneral_ci；
+4、库名长度不超过15，表名长度不超过30；
+5、表示类型、状态、标识等字段，必须使用status, _type, _flag做后缀；
+6、字段存储类型选择：
+精确浮点数必须使用decimal，
+年份使用year类型，
+日使用date类型，
+字段存储长度几乎相等用char类型，
+长度大于5000用text类型且要分表，
+日期精确到秒用timestamp类型，
+能用int的就不用char或者varchar,能用tinyint的就不用int，能用varchar(20)的就不用varchar(255)，char也一样；
+
+操作过程中：
+7、命名规范：表（不用用自己的名字，用业务板块命名）、视图vv、一般索引idx、唯一索引uk、主键pk、触发器tri、存储过程prc、函数fun、保存点spt、游标cur、变量v、输入参数变量p、输出参数变量o、输入输出参数变量x；
+8、所有表名、字段、存储过程，函数，解发器需要添加注释；
+9、表结构变化DDL需要通知DBA审核并进行更新；
+10、按功能用途加相应的后缀：临时表temp/tmp，统计表stat/statistic,历史数据his/history，备份表格式为表名_创建人_日期_bak（备份表必须建在每个数据库实例下的fe_bak库）
+fe_bak.sf_order_nieli_20180731_bak
+11、分表：字段数量尽量不超过30个；
+12、索引：
+	不使用外键索引；
+单个字段上不超过2个索引（单字段索引和组合字段索引）；
+单个索引中字段书不要超过5个；
+数据量超过1000行的表应该有索引；
+对于字段为字符串类型可以考虑使用前缀索引，前缀索引长度不超过20个字符（索引长度和区分度）
+复合索引字段的顺序：区分度高的放左边；（存在非等号和等号混合判断条件时，等号条件放左边）
+ORDER BY，GROUP BY，DISTINCT的字段需要添加在复合索引的靠后面部分正例：where a=? and b=?  order by c;  (联引索引字段a,b,c 索引名： idx_a_b_c)
+频繁DML的表，不要建立太多的索引；
+避免冗余的索引，如：primary key(id)，index(id)，unique index(id)
+优先使用唯一索引；
+UPDATE、DELETE SQL中，where所带的字段必须索引；
+一般建议在查询数据量10%以下使用索引；
+不走索引的情况：
+在索引列进行数学运算和函数运算，
+字段搜索严禁左模糊或全模糊like（如果需要请利用搜索引擎来解决：全文索引，或反转索引），
+索引字段类型不一致；
+WHERE条件中的非等值条件（！=，<>,IN、BETWEEN、<、<=、>、>=）
+
+13、单个SQL进行join关系的表不要超过4个；
+多表连接查询时，保证被关联字段需要有索引，关联字段数据类型必须一致；
+14、禁用insert into table1  select… from  table2 语句，此种语句会源表进行锁定，导致大量阻塞事务，甚至死锁。
+15、不要在开发代码中使用update、delete语句加limit；
+16、尽量不用not in, not like，is null, is not null;
+17、进行模糊查询时，禁止条件中字符串直接以‘%’开头，如果有可以使用全文索引或者反向索引技术reverse()，提高效率；
+18、禁止单条SQL语句同时更新多个表；
+19、SQL中使用到OR的改写为用IN()  (很多场景下OR的效率没有IN的效率高)；
+要学会使用EXIST代替IN，EXIST在一些场景查询会比IN快
+20、某些场景，SQL中使用or 转化成 UNION ALL 效果更好；
+21、SQL语句中IN包含的值不应过多，in 操作能避免则避免，若实在避免不了，里面数字的个数建议控制在 200以内，超过500个值使用分批的方式，否则一次执行会影响数据库的并发能力，因为单个SQL只能且一直占用单CPU，而且可能导致主从复制延迟
+22、尽量避免使用子查询，子查询会产生临时表，临时表没有任何索引，数据量大时严重影响效率。建议把子查询转化成关联查询。
+
+
+
+二、其他
+1、建表格式
+create table `sf_shelf` (
+  `shelf_id` bigint(20) not null auto_increment comment '货架编号',
+  `shelf_name` varchar(50)  not null default '' comment '货架名称',
+  `shelf_code` varchar(50)  not null default '' comment '货架编码',
+  `shelf_random_code` varchar(50) not null default '' comment '货架随机码',
+  `company_id` bigint(20)         not null default 0 comment '公司编号',
+  `shelf_type` int(2)             not null default 1 comment '货架类型(参考数据字典shelftype 1:四层标准货架、2:冰箱、3:五层防鼠货架、4:虚拟货架、5:冰柜、9:前置仓)(dict)',
+  primary key (`shelf_id`),     
+  key `idx_sf_shelf_code` (`shelf_code`),
+  key `idx_sf_shelf_city` (`city`)
+) engine=innodb comment='货架信息';
+
+1）建议所有字段定义为not null，定义时字符型使用default ‘’ ，数字型使用 default 0
+2）表必须有主键；唯一键不和主键重复；
+
+
+2、所有表必须增加以下5个基本字段，如下所示:
+data_flag           TINYINT    NOT NULL DEFAULT 1       COMMENT '数据状态(1:正常、2:删除)',    
+add_time           DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP  COMMENT '添加时间',
+add_user_id         BIGINT     NOT NULL DEFAULT 0       COMMENT '添加人员id',
+last_update_time    DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP  ON UPDATE CURRENT_TIMESTAMP  COMMENT '最后修改时间',
+last_update_user_id  BIGINT     NOT NULL DEFAULT 0       COMMENT '最后修改人员id',
+
+1). 开发程序代码中处理逻辑和查询时一定需要记得带上条件data_flag/或is_delete字段，以防数据重复
+2). 开发程序中增加数据时需要给add_user_id，last_update_user_id字段赋值，其它字段有默认值
+
+
+
+三、sql改进例子
+1、WHERE从句中禁止对索引列进行函数转换或表达式计算会导致无法使用索引
+例: where date(createtime)='20160901'   改进:  where createtime >= '20160901' and createtime < '20160902'
+
+例: WHERE data_format(tdate,'%Y-%m-%d %H:%i:%S')='2018-07-23 11:12:30' 
+WHERE tdate= STR_TO_DATE('2018-07-23 11:12:30''%Y-%m-%d %H:%i:%S');
+
+例: where amount*2=60   改进:  where amount = 60/2
+
+例: where LOWER(email)='zhangsan@163.com'   改进: where email= UPPER('zhangsan@163.com');
+
+2、某些场景，SQL中使用or 转化成 UNION ALL 效果更好
+比如 OR 条件： f_phone=’10000’ or f_mobile=’10000’，两个字段各自有索引，但只能用到其中一个。可以拆分成2个sql 用union all 连接起来
+
+
+四、语法
+case when a.mobile_phone is null then '未填电话号码' else '已填电话号码' end if_register
+
+case when SHELF_STATUS=2 and b.REVOKE_STATUS=1 and b.WHETHER_CLOSE=1 then '关闭未撤架'
+when SHELF_STATUS=2 and b.REVOKE_STATUS<>1 and b.WHETHER_CLOSE=1 then '关闭撤架过程中'
+when SHELF_STATUS=2 and b.REVOKE_STATUS<>1 and b.WHETHER_CLOSE=2 then '未关闭撤架过程中'
+when SHELF_STATUS=2 and b.REVOKE_STATUS=1 and b.WHETHER_CLOSE=2 then '正常货架'
+when SHELF_STATUS=3 then '已撤架货架'
+else '其他' end as SHELF_STATUS
+
+ifnull(a.mobile_phone,b.mobile_phone) as mobile_phone
+
+DATE_SUB(CURDATE(),INTERVAL 1 week) 、
+WEEKOFYEAR(order_date) 、 
+
+DATE_SUB(DATE_SUB(CURDATE(),INTERVAL DATE_FORMAT(CURDATE(),'%w')-1 day),INTERVAL 1 week)
+
+substring_index(week_order_qty, ',',-4)
+
+TIMESTAMPDIFF(YEAR, BIRTHDAY, CURDATE()) as age
+
+字段里面查询结果字符串拼接
+select user_id,CONCAT(i,',',h,',',g,',',f,',',e,',',d,',',c,',',b,',',a)  as week_order_qty
+from 
+(select a.user_id
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 1 week)) then order_id end) as a
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 2 week)) then order_id end) as b
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 3 week)) then order_id end) as c
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 4 week)) then order_id end) as d
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 5 week)) then order_id end) as e
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 6 week)) then order_id end) as f
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 7 week)) then order_id end) as g
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 8 week)) then order_id end) as h
+,count(distinct case when WEEKOFYEAR(order_date)=WEEKOFYEAR(DATE_SUB(CURDATE(),INTERVAL 9 week)) then order_id end) as i
+from fe.sf_order a
+
