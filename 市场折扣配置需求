@@ -1,0 +1,259 @@
+#货架商品折扣配置（采购居多）
+#select * from sf_discount_activity_analyse
+
+insert into sf_discount_activity_analyse(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select a.ACTIVITY_ID,a.shelf_id,a.product_id
+,a.discount_type as stype
+,a.discount_value,b.SALE_PRICE
+,a.START_DATE
+,a.END_DATE
+,1 as HANDLE_STATUS
+from feods.zs_qingdaodaoru_20180804 a
+LEFT join fe.sf_shelf_product_detail b on a.shelf_id=b.shelf_id and a.product_id=b.product_id
+-- LEFT JOIN feods.zs_shelf_flag c ON a.shelf_id=c.shelf_id
+where b.SALE_PRICE is not NULL
+AND STOCK_QUANTITY>0
+AND a.shelf_id NOT in(81921)
+AND b.SHELF_ID IS NOT NULL
+-- AND c.ext2<=1
+;
+commit;
+
+
+#地区商品直接打折
+insert into sf_discount_activity_analyse
+(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select d.ACTIVITY_ID,a.shelf_id,a.product_id
+,d.discount_type
+,d.discount_value
+,a.SALE_PRICE
+,d.START_DATE
+,d.END_DATE
+,1 as HANDLE_STATUS 
+from fe.sf_shelf_product_detail a
+left join fe.sf_shelf b on a.shelf_id=b.shelf_id
+left join fe.zs_city_business c on substring_index(substring_index(b.AREA_ADDRESS, ',', 2),',',-1)=c.city_name
+left join feods.zs_qingdaodaoru_20180903 d on (d.business_area=c.business_area and a.PRODUCT_ID=d.product_id)
+-- LEFT JOIN feods.zs_shelf_flag e ON a.shelf_id=e.shelf_id
+where b.SHELF_STATUS=2
+AND a.shelf_id NOT in(
+81921)
+AND b.shelf_type in(1,2,3,5,6,8)
+and d.START_DATE is not null
+and a.STOCK_QUANTITY>0
+
+
+
+#临期品折扣（地区商品维度--500003）临期7-15天
+insert into sf_discount_activity_analyse(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select 500003 as ACTIVITY_ID
+,a.shelf_id
+,a.product_id
+,1 as discount_type
+,3 as discount_value
+,a.SALE_PRICE
+,STR_TO_DATE('2019-06-19 08:00:00','%Y-%m-%d %H:%i:%s') as START_DATE
+,STR_TO_DATE('2019-06-25 23:59:59','%Y-%m-%d %H:%i:%s') as END_DATE
+,1 as HANDLE_STATUS 
+from fe.sf_shelf_product_detail a
+join fe.sf_shelf_product_detail_flag b on a.shelf_id=b.shelf_id and a.product_id=b.product_id
+join fe.sf_shelf c on a.shelf_id=c.shelf_id
+join fe.zs_city_business d on substring_index(substring_index(c.AREA_ADDRESS, ',', 2),',',-1)=d.city_name
+left join feods.zs_qingdaodaoru_20180918 e on (d.business_area=e.business_area and a.PRODUCT_ID=e.product_id and stype='7到15')
+LEFT JOIN feods.zs_shelf_flag f ON a.shelf_id=f.shelf_id
+WHERE b.SALES_FLAG in (1,2,3,4,5)
+AND a.SALE_PRICE IS NOT NULL
+and c.SHELF_STATUS=2
+AND c.SHELF_TYPE in(1,2,3,5,6,8)
+AND a.shelf_id NOT in(81921
+)
+and f.ext2<=1
+and e.product_id is not null
+;
+
+
+#临期品折扣（地区商品维度--500003）临期16-30天
+insert into sf_discount_activity_analyse(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select 500003 as ACTIVITY_ID
+,a.shelf_id
+,a.product_id
+,1 as discount_type
+,case when b.SALES_FLAG in (4,5) then 5 when b.SALES_FLAG=3 then 6 else 7 end as discount_value
+,a.SALE_PRICE
+,STR_TO_DATE('2019-06-19 08:00:00','%Y-%m-%d %H:%i:%s') as START_DATE
+,STR_TO_DATE('2019-06-25 23:59:59','%Y-%m-%d %H:%i:%s') as END_DATE
+,1 as HANDLE_STATUS 
+from fe.sf_shelf_product_detail a
+join fe.sf_shelf_product_detail_flag b on a.shelf_id=b.shelf_id and a.product_id=b.product_id
+join fe.sf_shelf c on a.shelf_id=c.shelf_id
+join fe.zs_city_business d on substring_index(substring_index(c.AREA_ADDRESS, ',', 2),',',-1)=d.city_name
+left join feods.zs_qingdaodaoru_20180918 e on (d.business_area=e.business_area and a.PRODUCT_ID=e.product_id and stype='15到30')
+LEFT JOIN feods.zs_shelf_flag f ON a.shelf_id=f.shelf_id
+WHERE b.SALES_FLAG in (1,2,3,4,5)
+AND a.SALE_PRICE IS NOT NULL
+AND a.shelf_id NOT in(81921
+)
+and c.SHELF_STATUS =2
+AND c.SHELF_TYPE in(1,2,3,5,6,8)
+and f.ext2<=1
+and e.product_id is not null
+;
+
+
+#临期品折扣（地区商品维度--500003）临期30天以上
+insert into sf_discount_activity_analyse(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select 500003 as ACTIVITY_ID
+,a.shelf_id
+,a.product_id
+,1 as discount_type
+,case when b.SALES_FLAG in (4,5) then 6 when b.SALES_FLAG=3 then 7 end as discount_value
+,a.SALE_PRICE
+,STR_TO_DATE('2019-06-19 08:00:00','%Y-%m-%d %H:%i:%s') as START_DATE
+,STR_TO_DATE('2019-06-25 23:59:59','%Y-%m-%d %H:%i:%s') as END_DATE
+,1 as HANDLE_STATUS 
+from fe.sf_shelf_product_detail a
+join fe.sf_shelf_product_detail_flag b on a.shelf_id=b.shelf_id and a.product_id=b.product_id
+join fe.sf_shelf c on a.shelf_id=c.shelf_id
+join fe.zs_city_business d on substring_index(substring_index(c.AREA_ADDRESS, ',', 2),',',-1)=d.city_name
+left join feods.zs_qingdaodaoru_20180918 e on (d.business_area=e.business_area and a.PRODUCT_ID=e.product_id and stype='30到45')
+LEFT JOIN feods.zs_shelf_flag f ON a.shelf_id=f.shelf_id
+WHERE b.SALES_FLAG in (3,4,5)
+AND a.SALE_PRICE IS NOT NULL
+and c.SHELF_STATUS=2
+AND c.SHELF_TYPE in(1,2,3,5,6,8)
+and f.ext2<=1
+AND a.shelf_id NOT in(81921
+)
+and e.product_id is not null
+;
+
+
+
+
+SET @row=0; SET @mid= '';
+
+select * from
+(select t1.*,case WHEN @mid=GMV_level THEN @row:=@row+1 ELSE @row:=1 END rownum,@mid:=GMV_level mid
+from
+(select c.GMV_level,a.SHELF_ID,a.PRODUCT_ID,a.START_DATE
+from fe.sf_discount_activity_item a
+left join fe.sf_shelf_product_detail b on a.shelf_id=b.shelf_id and a.product_id=b.product_id
+left join feods.zs_shelf_flag c on a.shelf_id=c.shelf_id
+where DISCOUNT_TYPE=1
+and DISCOUNT_VALUE=5
+and b.SALE_PRICE between 1.8 and 2.5
+and c.GMV_level is not null
+order by c.GMV_level,START_DATE desc
+) t1
+) t1
+where rownum<=100
+;
+
+DELETE FROM sf_discount_activity_analyse WHERE ACTIVITY_ID='500153'
+
+#秒杀(500147 4.1活动)
+SET @row=0; SET @mid= '';
+
+insert into sf_discount_activity_analyse(ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS)
+select 500153 as ACTIVITY_ID,t1.shelf_id,t1.product_id
+,3 as discount_type
+,round(t1.SALE_PRICE*0.5)  as discount_value
+,t1.SALE_PRICE
+,STR_TO_DATE('2019-04-27 09:00:00','%Y-%m-%d %H:%i:%s')
+,STR_TO_DATE('2019-04-27 10:00:00','%Y-%m-%d %H:%i:%s')
+,1 as HANDLE_STATUS 
+from 
+(select tx.*,case WHEN @mid=shelf_id THEN @row:=@row+1 ELSE @row:=1 END rownum,@mid:=shelf_id mid from
+(select b.sales_level,a.shelf_id,c.SHELF_TYPE,a.PRODUCT_ID,a.stock_quantity,a.SALE_PRICE
+from fe.sf_shelf_product_detail a 
+LEFT JOIN feods.zs_shelf_product_flag b on a.shelf_id=b.shelf_id and a.PRODUCT_ID=b.product_id
+left join fe.sf_shelf c on a.SHELF_ID=c.SHELF_ID
+-- LEFT JOIN feods.sf_discount_activity_analyse d ON (a.shelf_id=d.shelf_id AND a.PRODUCT_ID=d.product_id AND d.ACTIVITY_ID in('500140','500071','','500150','500151'))
+LEFT JOIN fe.sf_discount_activity_item e ON (a.SHELF_ID=e.SHELF_ID AND a.PRODUCT_ID=e.product_id AND e.ACTIVITY_ID in('500003','500071','500140') AND e.END_DATE>='2019-04-26')
+LEFT JOIN fe_bak.temp_shelf_product f ON (a.SHELF_ID=f.SHELF_ID AND a.PRODUCT_ID=f.product_id)
+where b.sales_level in(4,5)
+AND a.stock_quantity>1
+and a.product_id not in (19,1405,28,29,169)
+and b.NEW_FLAG=2
+AND ROUND(a.SALE_PRICE*0.5) BETWEEN 1 AND 3
+AND ROUND(a.SALE_PRICE*0.5)/a.SALE_PRICE BETWEEN 0.5 AND 0.7
+AND c.SHELF_TYPE in (1,2,3,6,8)
+-- AND d.SHELF_ID IS NULL
+AND e.SHELF_ID IS NULL
+AND f.shelf_id IS NULL
+order by a.shelf_id,-b.sales_level,-a.stock_quantity
+) tx
+) t1
+where rownum<=1
+;
+
+
+
+
+#去重复(开始)
+TRUNCATE sf_discount_activity_analyse_tmp;
+commit;
+
+SET @row=0; SET @mid= '';
+
+insert into sf_discount_activity_analyse_tmp(ANALYSE_ID,
+ACTIVITY_ID,
+SHELF_ID,
+PRODUCT_ID,
+DISCOUNT_TYPE,
+DISCOUNT_VALUE,
+BASE_PRICE,
+START_DATE,
+END_DATE,
+HANDLE_STATUS)
+select ANALYSE_ID,
+ACTIVITY_ID,
+SHELF_ID,
+PRODUCT_ID,
+DISCOUNT_TYPE,
+DISCOUNT_VALUE,
+BASE_PRICE,
+START_DATE,
+END_DATE,
+HANDLE_STATUS
+from (select tx.*,case WHEN @mid=abc THEN @row:=@row+1 ELSE @row:=1 END rownum,@mid:=abc mid from
+(select ANALYSE_ID,ACTIVITY_ID,SHELF_ID,PRODUCT_ID,DISCOUNT_TYPE,DISCOUNT_VALUE,BASE_PRICE,START_DATE,END_DATE,HANDLE_STATUS
+,case when discount_type=1 then discount_value*BASE_PRICE/10 when discount_type=3 then discount_value end as dis_value
+,CONCAT(SHELF_ID,"|",PRODUCT_ID) as abc
+from sf_discount_activity_analyse
+order by CONCAT(SHELF_ID,"|",PRODUCT_ID),case when discount_type=1 then discount_value*BASE_PRICE/10 when discount_type=3 then discount_value end
+) tx) t1
+where t1.rownum=1
+;
+commit;
+
+
+DELETE FROM sf_discount_activity_analyse;
+commit;
+
+insert into sf_discount_activity_analyse(ANALYSE_ID,
+ACTIVITY_ID,
+SHELF_ID,
+PRODUCT_ID,
+DISCOUNT_TYPE,
+DISCOUNT_VALUE,
+BASE_PRICE,
+START_DATE,
+END_DATE,
+HANDLE_STATUS)
+select ANALYSE_ID,
+ACTIVITY_ID,
+SHELF_ID,
+PRODUCT_ID,
+DISCOUNT_TYPE,
+DISCOUNT_VALUE,
+BASE_PRICE,
+START_DATE,
+END_DATE,
+HANDLE_STATUS 
+from sf_discount_activity_analyse_tmp
+;
+commit;
+
+#去重复(结束)
+
