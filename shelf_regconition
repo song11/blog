@@ -1,0 +1,55 @@
+import cv2
+import  numpy as np
+
+# 导入图片
+image = cv2.imread("./image/10.jpg")
+#转换为灰度图
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+#用Sobel算子计算x，y方向上的梯度，之后在x方向上减去y方向上的梯度，通过这个减法，我们留下具有高水平梯度和低垂直梯度的图像区域。
+gradX = cv2.Sobel(gray, cv2.CV_32F, dx=1, dy=0, ksize=-1)
+gradY = cv2.Sobel(gray, cv2.CV_32F, dx=0, dy=1, ksize=-1)
+#梯度减法
+gradient = cv2.subtract(gradX, gradY)
+gradient = cv2.convertScaleAbs(gradient)    # 图像增强
+# 去除图像上的噪声(平滑)
+# 使用低通滤泼器平滑图像（9 x 9内核）,这将有助于平滑图像中的高频噪声。
+# 低通滤波器的目标是降低图像的变化率。如将每个像素替换为该像素周围像素的均值。
+# 这样就可以平滑并替代那些强度变化明显的区域。
+blurred = cv2.blur(gradient, (9, 9))
+# 对模糊图像二值化，梯度图像中不大于90的任何像素都设置为0（黑色），否则，像素设置为255（白色）。
+_, thresh = cv2.threshold(blurred, 90, 255, cv2.THRESH_BINARY)
+# 用白色填充这些空余，使得后面的程序更容易识别，减少误差
+kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
+closed = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
+# 分别执行4次形态学腐蚀与膨胀
+closed = cv2.erode(closed, None, iterations=4)
+closed = cv2.dilate(closed, None, iterations=4)
+# 找出域轮廓
+x = cv2.findContours(closed.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+print(x)
+# _a, cnts, _b = x
+cnts, _b = x
+
+c = sorted(cnts, key=cv2.contourArea, reverse=True) # c 储存了所有的轮廓
+# 主要求得包含点集最小面积的矩形，这个矩形是可以有偏转角度的，可以与图像的边界不平行
+rect = cv2.minAreaRect(c[0])
+box = np.int0(cv2.boxPoints(rect))
+#OpenCV中通过cv2.drawContours在图像上绘制轮廓。
+cv2.drawContours(image, [box], -1, (0, 255, 0), 3)
+# 裁剪保存图片。
+Xs = [i[0] for i in box]
+Ys = [i[1] for i in box]
+x1 = min(Xs)
+x2 = max(Xs)
+y1 = min(Ys)
+y2 = max(Ys)
+hight = y2 - y1
+width = x2 - x1
+cropImg = image[y1:y1+hight, x1:x1+width]
+cv2.imwrite("b.jpg",cropImg)
+# cv2.imwrite("b.jpg")
+# 图片展示
+cv2.namedWindow("img", 0)
+cv2.imshow("img", cropImg)
+cv2.waitKey(0)
+
